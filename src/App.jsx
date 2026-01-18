@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 
 function isActive(st, year) {
-  const by = st.begin_year ?? -9999;
-  const ey = st.end_year ?? 9999;
+  const by = typeof st.begin_year === "number" ? st.begin_year : -9999;
+  const ey = typeof st.end_year === "number" ? st.end_year : 9999;
   return by <= year && year <= ey;
 }
 
 export default function App() {
   const [data, setData] = useState(null);
   const [year, setYear] = useState(null);
+
+  // Search controls
+  const [searchBy, setSearchBy] = useState("all"); // all | station | name | country
   const [q, setQ] = useState("");
+
   const url = import.meta.env.VITE_STATIONS_URL;
 
   useEffect(() => {
@@ -27,6 +31,7 @@ export default function App() {
   }, [url]);
 
   const stations = data?.stations ?? [];
+
   const years = useMemo(() => {
     if (!stations.length) return [];
     const ys = new Set();
@@ -39,18 +44,25 @@ export default function App() {
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
+    if (!qq) return stations;
+
     return stations.filter((s) => {
-      if (!qq) return true;
-      return (
-        (s.station_id || "").toLowerCase().includes(qq) ||
-        (s.name || "").toLowerCase().includes(qq) ||
-        (s.country || "").toLowerCase().includes(qq)
-      );
+      const station = (s.station_id || "").toLowerCase();
+      const name = (s.name || "").toLowerCase();
+      const country = (s.country || "").toLowerCase();
+
+      if (searchBy === "station") return station.includes(qq);
+      if (searchBy === "name") return name.includes(qq);
+      if (searchBy === "country") return country.includes(qq);
+
+      // default: all
+      return station.includes(qq) || name.includes(qq) || country.includes(qq);
     });
-  }, [stations, q]);
+  }, [stations, q, searchBy]);
 
   const counts = useMemo(() => {
-    if (!filtered.length || !year) return { active: 0, inactive: 0, total: filtered.length };
+    if (!filtered.length || !year)
+      return { active: 0, inactive: 0, total: filtered.length };
     let a = 0;
     for (const s of filtered) if (isActive(s, year)) a++;
     return { active: a, inactive: filtered.length - a, total: filtered.length };
@@ -60,26 +72,45 @@ export default function App() {
     return (
       <div style={{ padding: 16, fontFamily: "system-ui" }}>
         <h2>AFRIMET Dashboard</h2>
-        <p><b>Missing VITE_STATIONS_URL.</b> Set it in <code>.env.local</code>.</p>
+        <p>
+          <b>Missing VITE_STATIONS_URL.</b> Set it in your GitHub Secret (build
+          time) or in <code>.env.local</code> for local dev.
+        </p>
       </div>
     );
   }
 
   if (!data) {
-    return <div style={{ padding: 16, fontFamily: "system-ui" }}>Loading…</div>;
+    return (
+      <div style={{ padding: 16, fontFamily: "system-ui" }}>Loading…</div>
+    );
   }
 
   if (data.error) {
     return (
       <div style={{ padding: 16, fontFamily: "system-ui" }}>
         <h2>AFRIMET Dashboard</h2>
-        <p style={{ color: "crimson" }}>Failed to load stations_status.json: {data.error}</p>
+        <p style={{ color: "crimson" }}>
+          Failed to load stations_status.json: {data.error}
+        </p>
       </div>
     );
   }
 
+  const searchPlaceholder =
+    searchBy === "all"
+      ? "Search station / name / country…"
+      : `Search ${searchBy}…`;
+
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui", maxWidth: 1100, margin: "0 auto" }}>
+    <div
+      style={{
+        padding: 16,
+        fontFamily: "system-ui",
+        maxWidth: 1100,
+        margin: "0 auto",
+      }}
+    >
       <h2>AFRIMET Stations Dashboard</h2>
       <p style={{ opacity: 0.8, marginTop: 0 }}>
         Data generated at: <code>{data.generated_at}</code>
@@ -87,15 +118,15 @@ export default function App() {
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Active</div>
+          <div style={{ opacity: 0.7 }}>Active (year {year ?? "-"})</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.active}</div>
         </div>
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Inactive</div>
+          <div style={{ opacity: 0.7 }}>Inactive (year {year ?? "-"})</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.inactive}</div>
         </div>
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Total</div>
+          <div style={{ opacity: 0.7 }}>Total (after search)</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.total}</div>
         </div>
       </div>
@@ -103,17 +134,52 @@ export default function App() {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <label>
           Year:&nbsp;
-          <select value={year ?? ""} onChange={(e) => setYear(Number(e.target.value))}>
-            {years.length ? years.map((y) => <option key={y} value={y}>{y}</option>) : null}
+          <select
+            value={year ?? ""}
+            onChange={(e) => setYear(Number(e.target.value))}
+          >
+            {years.length ? years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            )) : null}
+          </select>
+        </label>
+
+        <label>
+          Search by:&nbsp;
+          <select value={searchBy} onChange={(e) => setSearchBy(e.target.value)}>
+            <option value="all">All</option>
+            <option value="station">Station</option>
+            <option value="name">Name</option>
+            <option value="country">Country</option>
           </select>
         </label>
 
         <input
-          style={{ padding: 8, borderRadius: 10, border: "1px solid #ccc", minWidth: 260 }}
-          placeholder="Search station id / name / country…"
+          style={{
+            padding: 8,
+            borderRadius: 10,
+            border: "1px solid #ccc",
+            minWidth: 280,
+          }}
+          placeholder={searchPlaceholder}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+
+        <button
+          style={{
+            padding: "8px 10px",
+            borderRadius: 10,
+            border: "1px solid #ccc",
+            background: "white",
+            cursor: "pointer",
+          }}
+          onClick={() => setQ("")}
+          disabled={!q}
+          title="Clear search"
+        >
+          Clear
+        </button>
       </div>
 
       <div style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
@@ -133,19 +199,24 @@ export default function App() {
               const active = year ? isActive(s, year) : false;
               return (
                 <tr key={s.station_id} style={{ borderTop: "1px solid #eee" }}>
-                  <td style={{ padding: 10 }}><code>{s.station_id}</code></td>
+                  <td style={{ padding: 10 }}>
+                    <code>{s.station_id}</code>
+                  </td>
                   <td style={{ padding: 10 }}>{s.name || "-"}</td>
                   <td style={{ padding: 10 }}>{s.country || "-"}</td>
                   <td style={{ padding: 10 }}>{s.begin_year ?? "-"}</td>
                   <td style={{ padding: 10 }}>{s.end_year ?? "-"}</td>
-                  <td style={{ padding: 10, fontWeight: 600 }}>{active ? "Active" : "Inactive"}</td>
+                  <td style={{ padding: 10, fontWeight: 600 }}>
+                    {active ? "Active" : "Inactive"}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+
         <div style={{ padding: 10, opacity: 0.7 }}>
-          Showing first 200 results. (We’ll add pagination + map next.)
+          Showing first 200 results. (We can add pagination + a map next.)
         </div>
       </div>
     </div>
