@@ -10,8 +10,11 @@ export default function App() {
   const [data, setData] = useState(null);
   const [year, setYear] = useState(null);
 
-  // Search controls
-  const [searchBy, setSearchBy] = useState("all"); // all | station | name | country
+  // Navigation
+  const [page, setPage] = useState("reported"); // reported | stations
+
+  // Search controls (for reported page)
+  const [searchBy, setSearchBy] = useState("all");
   const [q, setQ] = useState("");
 
   const url = import.meta.env.VITE_STATIONS_URL;
@@ -54,8 +57,6 @@ export default function App() {
       if (searchBy === "station") return station.includes(qq);
       if (searchBy === "name") return name.includes(qq);
       if (searchBy === "country") return country.includes(qq);
-
-      // default: all
       return station.includes(qq) || name.includes(qq) || country.includes(qq);
     });
   }, [stations, q, searchBy]);
@@ -73,17 +74,15 @@ export default function App() {
       <div style={{ padding: 16, fontFamily: "system-ui" }}>
         <h2>AFRIMET Dashboard</h2>
         <p>
-          <b>Missing VITE_STATIONS_URL.</b> Set it in your GitHub Secret (build
-          time) or in <code>.env.local</code> for local dev.
+          <b>Missing VITE_STATIONS_URL.</b> Set it via GitHub Secret or{" "}
+          <code>.env.local</code>.
         </p>
       </div>
     );
   }
 
   if (!data) {
-    return (
-      <div style={{ padding: 16, fontFamily: "system-ui" }}>Loading…</div>
-    );
+    return <div style={{ padding: 16, fontFamily: "system-ui" }}>Loading…</div>;
   }
 
   if (data.error) {
@@ -97,127 +96,255 @@ export default function App() {
     );
   }
 
-  const searchPlaceholder =
-    searchBy === "all"
-      ? "Search station / name / country…"
-      : `Search ${searchBy}…`;
+  const MenuItem = ({ id, label }) => {
+    const active = page === id;
+    return (
+      <button
+        onClick={() => setPage(id)}
+        style={{
+          textAlign: "left",
+          width: "100%",
+          padding: "10px 12px",
+          borderRadius: 10,
+          border: "1px solid #e6e6e6",
+          background: active ? "#f2f2f2" : "white",
+          cursor: "pointer",
+          fontWeight: active ? 700 : 600,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
-    <div
-      style={{
-        padding: 16,
-        fontFamily: "system-ui",
-        maxWidth: 1100,
-        margin: "0 auto",
-      }}
-    >
-      <h2>AFRIMET Stations Dashboard</h2>
-      <p style={{ opacity: 0.8, marginTop: 0 }}>
-        Data generated at: <code>{data.generated_at}</code>
-      </p>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Active (year {year ?? "-"})</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.active}</div>
-        </div>
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Inactive (year {year ?? "-"})</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.inactive}</div>
-        </div>
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, minWidth: 220 }}>
-          <div style={{ opacity: 0.7 }}>Total (after search)</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{counts.total}</div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <label>
-          Year:&nbsp;
-          <select
-            value={year ?? ""}
-            onChange={(e) => setYear(Number(e.target.value))}
-          >
-            {years.length ? years.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            )) : null}
-          </select>
-        </label>
-
-        <label>
-          Search by:&nbsp;
-          <select value={searchBy} onChange={(e) => setSearchBy(e.target.value)}>
-            <option value="all">All</option>
-            <option value="station">Station</option>
-            <option value="name">Name</option>
-            <option value="country">Country</option>
-          </select>
-        </label>
-
-        <input
-          style={{
-            padding: 8,
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            minWidth: 280,
-          }}
-          placeholder={searchPlaceholder}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+    <div style={{ minHeight: "100vh", fontFamily: "system-ui" }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "12px 16px",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+        <img
+          src="/acmad-logo.png"
+          alt="ACMAD logo"
+          style={{ height: 40, width: "auto" }}
         />
-
-        <button
-          style={{
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            background: "white",
-            cursor: "pointer",
-          }}
-          onClick={() => setQ("")}
-          disabled={!q}
-          title="Clear search"
-        >
-          Clear
-        </button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>
+            Afrimet - Africa Hourly - Integrated Surface Database (ISD)
+          </div>
+          <div style={{ opacity: 0.75, fontSize: 12 }}>
+            Generated at <code>{data.generated_at}</code>
+          </div>
+        </div>
       </div>
 
-      <div style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#fafafa" }}>
-            <tr>
-              <th style={{ textAlign: "left", padding: 10 }}>Station</th>
-              <th style={{ textAlign: "left", padding: 10 }}>Name</th>
-              <th style={{ textAlign: "left", padding: 10 }}>Country</th>
-              <th style={{ textAlign: "left", padding: 10 }}>Begin</th>
-              <th style={{ textAlign: "left", padding: 10 }}>End</th>
-              <th style={{ textAlign: "left", padding: 10 }}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, 200).map((s) => {
-              const active = year ? isActive(s, year) : false;
-              return (
-                <tr key={s.station_id} style={{ borderTop: "1px solid #eee" }}>
-                  <td style={{ padding: 10 }}>
-                    <code>{s.station_id}</code>
-                  </td>
-                  <td style={{ padding: 10 }}>{s.name || "-"}</td>
-                  <td style={{ padding: 10 }}>{s.country || "-"}</td>
-                  <td style={{ padding: 10 }}>{s.begin_year ?? "-"}</td>
-                  <td style={{ padding: 10 }}>{s.end_year ?? "-"}</td>
-                  <td style={{ padding: 10, fontWeight: 600 }}>
-                    {active ? "Active" : "Inactive"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Body: sidebar + main */}
+      <div style={{ display: "flex" }}>
+        {/* Sidebar */}
+        <aside
+          style={{
+            width: 260,
+            padding: 14,
+            borderRight: "1px solid #eee",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontWeight: 800, opacity: 0.75 }}>Menu</div>
+          <MenuItem id="reported" label="Reported data" />
+          <MenuItem
+            id="stations"
+            label="Stations activity since 1900"
+          />
+        </aside>
 
-        <div style={{ padding: 10, opacity: 0.7 }}>
-          Showing first 200 results. (We can add pagination + a map next.)
-        </div>
+        {/* Main */}
+        <main style={{ flex: 1, padding: 16, maxWidth: 1200 }}>
+          {page === "reported" ? (
+            <>
+              <h3 style={{ marginTop: 0 }}>Reported data</h3>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: 12,
+                    padding: 12,
+                    minWidth: 220,
+                  }}
+                >
+                  <div style={{ opacity: 0.7 }}>Active (year {year ?? "-"})</div>
+                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                    {counts.active}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: 12,
+                    padding: 12,
+                    minWidth: 220,
+                  }}
+                >
+                  <div style={{ opacity: 0.7 }}>Inactive (year {year ?? "-"})</div>
+                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                    {counts.inactive}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: 12,
+                    padding: 12,
+                    minWidth: 220,
+                  }}
+                >
+                  <div style={{ opacity: 0.7 }}>Total (after filter)</div>
+                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                    {counts.total}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <label>
+                  Year:&nbsp;
+                  <select
+                    value={year ?? ""}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                  >
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Search by:&nbsp;
+                  <select
+                    value={searchBy}
+                    onChange={(e) => setSearchBy(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="station">Station</option>
+                    <option value="name">Name</option>
+                    <option value="country">Country</option>
+                  </select>
+                </label>
+
+                <input
+                  style={{
+                    padding: 8,
+                    borderRadius: 10,
+                    border: "1px solid #ccc",
+                    minWidth: 280,
+                  }}
+                  placeholder={
+                    searchBy === "all"
+                      ? "Search station / name / country…"
+                      : `Search ${searchBy}…`
+                  }
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+
+                <button
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #ccc",
+                    background: "white",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setQ("")}
+                  disabled={!q}
+                  title="Clear search"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid #eee",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead style={{ background: "#fafafa" }}>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: 10 }}>Station</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Name</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Country</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Begin</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>End</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.slice(0, 200).map((s) => {
+                      const active = year ? isActive(s, year) : false;
+                      return (
+                        <tr
+                          key={s.station_id}
+                          style={{ borderTop: "1px solid #eee" }}
+                        >
+                          <td style={{ padding: 10 }}>
+                            <code>{s.station_id}</code>
+                          </td>
+                          <td style={{ padding: 10 }}>{s.name || "-"}</td>
+                          <td style={{ padding: 10 }}>{s.country || "-"}</td>
+                          <td style={{ padding: 10 }}>{s.begin_year ?? "-"}</td>
+                          <td style={{ padding: 10 }}>{s.end_year ?? "-"}</td>
+                          <td style={{ padding: 10, fontWeight: 700 }}>
+                            {active ? "Active" : "Inactive"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div style={{ padding: 10, opacity: 0.7 }}>
+                  Showing first 200 results.
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 style={{ marginTop: 0 }}>Stations activity since 1900</h3>
+              <p style={{ opacity: 0.75 }}>
+                Next step: we’ll add a chart showing number of active vs inactive
+                stations per year from 1900 to {data.default_year}.
+              </p>
+            </>
+          )}
+        </main>
       </div>
     </div>
   );
