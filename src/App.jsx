@@ -1,9 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+} from "recharts";
 
 function isActive(st, year) {
   const by = typeof st.begin_year === "number" ? st.begin_year : -9999;
   const ey = typeof st.end_year === "number" ? st.end_year : 9999;
   return by <= year && year <= ey;
+}
+
+function activeCountForYear(stations, year) {
+  let active = 0;
+  for (const s of stations) {
+    const by = typeof s.begin_year === "number" ? s.begin_year : -9999;
+    const ey = typeof s.end_year === "number" ? s.end_year : 9999;
+    if (by <= year && year <= ey) active++;
+  }
+  return active;
 }
 
 export default function App() {
@@ -14,7 +34,7 @@ export default function App() {
   const [page, setPage] = useState("reported"); // reported | stations
 
   // Search controls (for reported page)
-  const [searchBy, setSearchBy] = useState("all");
+  const [searchBy, setSearchBy] = useState("all"); // all | station | name | country
   const [q, setQ] = useState("");
 
   const url = import.meta.env.VITE_STATIONS_URL;
@@ -57,6 +77,8 @@ export default function App() {
       if (searchBy === "station") return station.includes(qq);
       if (searchBy === "name") return name.includes(qq);
       if (searchBy === "country") return country.includes(qq);
+
+      // default: all
       return station.includes(qq) || name.includes(qq) || country.includes(qq);
     });
   }, [stations, q, searchBy]);
@@ -68,6 +90,25 @@ export default function App() {
     for (const s of filtered) if (isActive(s, year)) a++;
     return { active: a, inactive: filtered.length - a, total: filtered.length };
   }, [filtered, year]);
+
+  const stationActivitySeries = useMemo(() => {
+    if (!stations.length) return [];
+    const startYear = 1900;
+    const endYear = data?.default_year ?? new Date().getUTCFullYear();
+    const total = stations.length;
+
+    const series = [];
+    for (let y = startYear; y <= endYear; y++) {
+      const active = activeCountForYear(stations, y);
+      series.push({
+        year: y,
+        active,
+        inactive: total - active,
+        total,
+      });
+    }
+    return series;
+  }, [stations, data?.default_year]);
 
   if (!url) {
     return (
@@ -109,7 +150,7 @@ export default function App() {
           border: "1px solid #e6e6e6",
           background: active ? "#f2f2f2" : "white",
           cursor: "pointer",
-          fontWeight: active ? 700 : 600,
+          fontWeight: active ? 800 : 600,
         }}
       >
         {label}
@@ -135,7 +176,7 @@ export default function App() {
           style={{ height: 40, width: "auto" }}
         />
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>
+          <div style={{ fontSize: 18, fontWeight: 900 }}>
             Afrimet - Africa Hourly - Integrated Surface Database (ISD)
           </div>
           <div style={{ opacity: 0.75, fontSize: 12 }}>
@@ -144,7 +185,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Body: sidebar + main */}
+      {/* Body */}
       <div style={{ display: "flex" }}>
         {/* Sidebar */}
         <aside
@@ -157,12 +198,9 @@ export default function App() {
             gap: 10,
           }}
         >
-          <div style={{ fontWeight: 800, opacity: 0.75 }}>Menu</div>
+          <div style={{ fontWeight: 900, opacity: 0.75 }}>Menu</div>
           <MenuItem id="reported" label="Reported data" />
-          <MenuItem
-            id="stations"
-            label="Stations activity since 1900"
-          />
+          <MenuItem id="stations" label="Stations activity since 1900" />
         </aside>
 
         {/* Main */}
@@ -171,6 +209,7 @@ export default function App() {
             <>
               <h3 style={{ marginTop: 0 }}>Reported data</h3>
 
+              {/* KPIs */}
               <div
                 style={{
                   display: "flex",
@@ -188,7 +227,7 @@ export default function App() {
                   }}
                 >
                   <div style={{ opacity: 0.7 }}>Active (year {year ?? "-"})</div>
-                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                  <div style={{ fontSize: 28, fontWeight: 900 }}>
                     {counts.active}
                   </div>
                 </div>
@@ -200,8 +239,10 @@ export default function App() {
                     minWidth: 220,
                   }}
                 >
-                  <div style={{ opacity: 0.7 }}>Inactive (year {year ?? "-"})</div>
-                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                  <div style={{ opacity: 0.7 }}>
+                    Inactive (year {year ?? "-"})
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 900 }}>
                     {counts.inactive}
                   </div>
                 </div>
@@ -214,12 +255,13 @@ export default function App() {
                   }}
                 >
                   <div style={{ opacity: 0.7 }}>Total (after filter)</div>
-                  <div style={{ fontSize: 28, fontWeight: 800 }}>
+                  <div style={{ fontSize: 28, fontWeight: 900 }}>
                     {counts.total}
                   </div>
                 </div>
               </div>
 
+              {/* Controls */}
               <div
                 style={{
                   display: "flex",
@@ -288,6 +330,7 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Table */}
               <div
                 style={{
                   border: "1px solid #eee",
@@ -321,7 +364,7 @@ export default function App() {
                           <td style={{ padding: 10 }}>{s.country || "-"}</td>
                           <td style={{ padding: 10 }}>{s.begin_year ?? "-"}</td>
                           <td style={{ padding: 10 }}>{s.end_year ?? "-"}</td>
-                          <td style={{ padding: 10, fontWeight: 700 }}>
+                          <td style={{ padding: 10, fontWeight: 800 }}>
                             {active ? "Active" : "Inactive"}
                           </td>
                         </tr>
@@ -338,10 +381,38 @@ export default function App() {
           ) : (
             <>
               <h3 style={{ marginTop: 0 }}>Stations activity since 1900</h3>
-              <p style={{ opacity: 0.75 }}>
-                Next step: we’ll add a chart showing number of active vs inactive
-                stations per year from 1900 to {data.default_year}.
-              </p>
+
+              <div
+                style={{
+                  border: "1px solid #eee",
+                  borderRadius: 12,
+                  padding: 12,
+                  background: "white",
+                }}
+              >
+                <div style={{ marginBottom: 8, fontWeight: 800 }}>
+                  Active vs Inactive stations (1900 → {data.default_year})
+                </div>
+
+                <div style={{ height: 420 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={stationActivitySeries}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="active" dot={false} />
+                      <Line type="monotone" dataKey="inactive" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 8 }}>
+                  Total stations: <b>{stations.length}</b>. Status is computed
+                  from begin/end years in the stations metadata.
+                </div>
+              </div>
             </>
           )}
         </main>
