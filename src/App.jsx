@@ -20,28 +20,45 @@ function isActive(st, year) {
 function activeCountForYear(stations, year) {
   let active = 0;
   for (const s of stations) {
-    const by = typeof s.begin_year === "number" ? s.begin_year : -9999;
-    const ey = typeof s.end_year === "number" ? s.end_year : 9999;
-    if (by <= year && year <= ey) active++;
+    if (isActive(s, year)) active++;
   }
   return active;
+}
+
+function MenuItem({ id, label, page, setPage }) {
+  const active = page === id;
+
+  return (
+    <button
+      onClick={() => setPage(id)}
+      style={{
+        textAlign: "left",
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 10,
+        border: "1px solid #e6e6e6",
+        background: active ? "#f2f2f2" : "white",
+        cursor: "pointer",
+        fontWeight: active ? 800 : 600,
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 export default function App() {
   const [data, setData] = useState(null);
   const [year, setYear] = useState(null);
-
-  // Navigation
-  const [page, setPage] = useState("reported"); // reported | stations
-
-  // Search controls (for reported page)
-  const [searchBy, setSearchBy] = useState("all"); // all | station | name | country
+  const [page, setPage] = useState("reported");
+  const [searchBy, setSearchBy] = useState("all");
   const [q, setQ] = useState("");
 
   const url = import.meta.env.VITE_STATIONS_URL;
 
   useEffect(() => {
     if (!url) return;
+
     fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -54,15 +71,17 @@ export default function App() {
       .catch((e) => setData({ error: String(e) }));
   }, [url]);
 
-  const stations = data?.stations ?? [];
+  const stations = useMemo(() => data?.stations ?? [], [data]);
 
   const years = useMemo(() => {
     if (!stations.length) return [];
+
     const ys = new Set();
     for (const s of stations) {
       if (typeof s.begin_year === "number") ys.add(s.begin_year);
       if (typeof s.end_year === "number") ys.add(s.end_year);
     }
+
     return Array.from(ys).sort((a, b) => a - b);
   }, [stations]);
 
@@ -79,21 +98,30 @@ export default function App() {
       if (searchBy === "name") return name.includes(qq);
       if (searchBy === "country") return country.includes(qq);
 
-      // default: all
       return station.includes(qq) || name.includes(qq) || country.includes(qq);
     });
   }, [stations, q, searchBy]);
 
   const counts = useMemo(() => {
-    if (!filtered.length || !year)
+    if (!filtered.length || !year) {
       return { active: 0, inactive: 0, total: filtered.length };
-    let a = 0;
-    for (const s of filtered) if (isActive(s, year)) a++;
-    return { active: a, inactive: filtered.length - a, total: filtered.length };
+    }
+
+    let active = 0;
+    for (const s of filtered) {
+      if (isActive(s, year)) active++;
+    }
+
+    return {
+      active,
+      inactive: filtered.length - active,
+      total: filtered.length,
+    };
   }, [filtered, year]);
 
   const stationActivitySeries = useMemo(() => {
     if (!stations.length) return [];
+
     const startYear = 1900;
     const endYear = data?.default_year ?? new Date().getUTCFullYear();
     const total = stations.length;
@@ -108,6 +136,7 @@ export default function App() {
         total,
       });
     }
+
     return series;
   }, [stations, data?.default_year]);
 
@@ -138,30 +167,8 @@ export default function App() {
     );
   }
 
-  const MenuItem = ({ id, label }) => {
-    const active = page === id;
-    return (
-      <button
-        onClick={() => setPage(id)}
-        style={{
-          textAlign: "left",
-          width: "100%",
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid #e6e6e6",
-          background: active ? "#f2f2f2" : "white",
-          cursor: "pointer",
-          fontWeight: active ? 800 : 600,
-        }}
-      >
-        {label}
-      </button>
-    );
-  };
-
   return (
     <div style={{ minHeight: "100vh", fontFamily: "system-ui" }}>
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -186,9 +193,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Body */}
       <div style={{ display: "flex" }}>
-        {/* Sidebar */}
         <aside
           style={{
             width: 260,
@@ -200,17 +205,34 @@ export default function App() {
           }}
         >
           <div style={{ fontWeight: 900, opacity: 0.75 }}>Menu</div>
-          <MenuItem id="reported" label="Reported data" />
-          <MenuItem id="stations" label="Stations activity since 1900" />
+
+          <MenuItem
+            id="reported"
+            label="Reported data"
+            page={page}
+            setPage={setPage}
+          />
+
+          <MenuItem
+            id="stations"
+            label="Stations activity since 1900"
+            page={page}
+            setPage={setPage}
+          />
+
+          <MenuItem
+            id="get-data"
+            label="Get Data"
+            page={page}
+            setPage={setPage}
+          />
         </aside>
 
-        {/* Main */}
         <main style={{ flex: 1, padding: 16, maxWidth: 1200 }}>
-          {page === "reported" ? (
+          {page === "reported" && (
             <>
               <h3 style={{ marginTop: 0 }}>Reported data</h3>
 
-              {/* KPIs */}
               <div
                 style={{
                   display: "flex",
@@ -227,11 +249,14 @@ export default function App() {
                     minWidth: 220,
                   }}
                 >
-                  <div style={{ opacity: 0.7 }}>Active (year {year ?? "-"})</div>
+                  <div style={{ opacity: 0.7 }}>
+                    Active (year {year ?? "-"})
+                  </div>
                   <div style={{ fontSize: 28, fontWeight: 900 }}>
                     {counts.active}
                   </div>
                 </div>
+
                 <div
                   style={{
                     border: "1px solid #ddd",
@@ -247,6 +272,7 @@ export default function App() {
                     {counts.inactive}
                   </div>
                 </div>
+
                 <div
                   style={{
                     border: "1px solid #ddd",
@@ -262,7 +288,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Controls */}
               <div
                 style={{
                   display: "flex",
@@ -331,7 +356,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Table */}
               <div
                 style={{
                   border: "1px solid #eee",
@@ -350,9 +374,11 @@ export default function App() {
                       <th style={{ textAlign: "left", padding: 10 }}>Status</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {filtered.slice(0, 200).map((s) => {
                       const active = year ? isActive(s, year) : false;
+
                       return (
                         <tr
                           key={s.station_id}
@@ -379,7 +405,9 @@ export default function App() {
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {page === "stations" && (
             <>
               <h3 style={{ marginTop: 0 }}>Stations activity since 1900</h3>
 
@@ -416,6 +444,8 @@ export default function App() {
               </div>
             </>
           )}
+
+          {page === "get-data" && <GetData stations={stations} />}
         </main>
       </div>
     </div>
